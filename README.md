@@ -298,7 +298,7 @@ pnpm test:e2e                           # end-to-end tests
   - [`tests/lib`](tests/lib) covers money parsing and formatting, the form schema and the API schema.
 - **E2E tests (Playwright):** [`tests/e2e`](tests/e2e) runs on desktop and mobile Chromium.
   - It opens the Add Expense modal, fills the form, submits, then checks that the new expense appears and the netted balance updates.
-  - It also checks validation errors.
+  - It also checks validation errors, plus error states using mocked API failures: a failed load shows retry, and a failed save keeps the modal open with the error.
   - Playwright builds the app and starts it on port 3100 against a **separate** database (`prisma/e2e.db`), so your dev data is untouched.
   - Expected balances are computed from the API before the test, so the suite is repeatable.
 
