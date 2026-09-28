@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  paidExpenses Expense[] @relation("PaidBy")
+  owedExpenses Expense[] @relation("ExpenseFor")
+}
+
+/// A single directional transaction: `paidBy` covered `amountCents` for
+/// `expenseFor`, so `expenseFor` owes `paidBy` that amount.
+model Expense {
+  id           Int      @id @default(autoincrement())
+  paidById     Int
+  expenseForId Int
+  /// Stored as integer cents (e.g. $12.50 -> 1250) to avoid floating-point errors.
+  amountCents  Int
+  description  String
+  createdAt    DateTime @default(now())
+
+  paidBy     User @relation("PaidBy", fields: [paidById], references: [id], onDelete: Restrict)
+  expenseFor User @relation("ExpenseFor", fields: [expenseForId], references: [id], onDelete: Restrict)
+
+  @@index([paidById])
+  @@index([expenseForId])
+  @@index([createdAt])
+}
