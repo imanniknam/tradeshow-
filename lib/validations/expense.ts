@@ -39,7 +39,7 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export const expenseFormSchema = z
   .object({
     paidById: z.string().min(1, "Select who paid"),
-    expenseForId: z.string().min(1, "Select who the expense was for"),
+    expenseForId: z.string().min(1, "Select who it was for"),
     amount: z
       .string()
       .trim()
