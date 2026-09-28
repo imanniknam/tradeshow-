@@ -1,46 +1,48 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import { ArrowRightIcon, ReceiptTextIcon } from "lucide-react";
 
+import { AddExpenseButton } from "@/components/expenses/AddExpenseModal";
+import { Panel, PanelHeader } from "@/components/shared/Panel";
 import { QueryError } from "@/components/shared/QueryError";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserAvatar } from "@/components/users/UserAvatar";
 import { useExpenses } from "@/lib/api/queries";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { formatCents } from "@/lib/money";
-import type { ExpenseDto } from "@/lib/types";
+import type { ExpenseDto, UserDto } from "@/lib/types";
 
 export function ExpenseList() {
   const { data: expenses, error, isPending, isFetching, refetch } = useExpenses();
 
-  const totalCents = expenses?.reduce((sum, expense) => sum + expense.amountCents, 0) ?? 0;
-
   return (
-    <Card aria-labelledby="expenses-heading">
-      <CardHeader>
-        <CardTitle id="expenses-heading" className="text-base">
-          Expenses
-        </CardTitle>
-        <CardDescription>
-          {expenses && expenses.length > 0
-            ? `${expenses.length} ${expenses.length === 1 ? "expense" : "expenses"} · ${formatCents(totalCents)} total`
-            : "Every payment made on someone else's behalf."}
-        </CardDescription>
-        {isFetching && !isPending && (
-          <CardAction>
+    <Panel id="expenses" aria-labelledby="expenses-heading">
+      <PanelHeader
+        titleId="expenses-heading"
+        title="Recent Expenses"
+        description={
+          expenses && expenses.length > 0
+            ? `${expenses.length} ${expenses.length === 1 ? "transaction" : "transactions"} · newest first`
+            : "Every payment made on someone else's behalf"
+        }
+        action={
+          isFetching && !isPending ? (
             <Spinner className="text-muted-foreground" aria-label="Refreshing expenses" />
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isPending ? (
-          <ExpenseListSkeleton />
-        ) : error ? (
+          ) : undefined
+        }
+      />
+
+      {isPending ? (
+        <ExpenseListSkeleton />
+      ) : error ? (
+        <div className="p-4 sm:p-5">
           <QueryError title="Couldn't load expenses" error={error} onRetry={() => refetch()} isRetrying={isFetching} />
-        ) : expenses.length === 0 ? (
+        </div>
+      ) : expenses.length === 0 ? (
+        <div className="p-4 sm:p-5">
           <Empty className="border border-dashed">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -49,58 +51,114 @@ export function ExpenseList() {
               <EmptyTitle>No expenses yet</EmptyTitle>
               <EmptyDescription>Add your first expense to start tracking who owes whom.</EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <AddExpenseButton size="sm" />
+            </EmptyContent>
           </Empty>
-        ) : (
-          <ul aria-label="Expenses" className="-my-3 divide-y">
-            {expenses.map((expense) => (
-              <ExpenseRow key={expense.id} expense={expense} />
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      ) : (
+        <>
+          <ExpenseTable expenses={expenses} />
+          <ExpenseCards expenses={expenses} />
+        </>
+      )}
+    </Panel>
   );
 }
 
-function ExpenseRow({ expense }: { expense: ExpenseDto }) {
-  const { paidBy, expenseFor, amountCents, description, createdAt } = expense;
-
+function PersonCell({ user }: { user: UserDto }) {
   return (
-    <li className="flex items-center gap-3 py-3">
-      <UserAvatar user={paidBy} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium" title={description}>
-          {description}
-        </p>
-        <p className="flex flex-wrap gap-x-1.5 text-muted-foreground">
-          <span>
-            <span className="font-medium text-foreground">{paidBy.name}</span> paid for{" "}
-            <span className="font-medium text-foreground">{expenseFor.name}</span>
-          </span>
-          <span aria-hidden className="max-sm:hidden">
-            ·
-          </span>
-          <time dateTime={createdAt} title={formatDateTime(createdAt)} className="whitespace-nowrap max-sm:basis-full max-sm:text-xs">
-            {formatDate(createdAt)}
-          </time>
-        </p>
-      </div>
-      <p className="shrink-0 text-right font-semibold tabular-nums">{formatCents(amountCents)}</p>
-    </li>
+    <span className="flex items-center gap-2.5">
+      <UserAvatar user={user} size="sm" />
+      <span className="font-medium">{user.name}</span>
+    </span>
+  );
+}
+
+function ExpenseDate({ iso, className }: { iso: string; className?: string }) {
+  return (
+    <time dateTime={iso} title={formatDateTime(iso)} className={className}>
+      {formatDate(iso)}
+    </time>
+  );
+}
+
+/** Desktop / tablet: a proper data table. */
+function ExpenseTable({ expenses }: { expenses: ExpenseDto[] }) {
+  return (
+    <div className="hidden md:block">
+      <Table aria-label="Expenses">
+        <TableHeader>
+          <TableRow className="bg-muted/60 hover:bg-muted/60">
+            <TableHead className="pl-5">Paid by</TableHead>
+            <TableHead>Expense for</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead className="pr-5 text-right">Date</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {expenses.map((expense) => (
+            <TableRow key={expense.id} data-testid="expense-row" className="h-14">
+              <TableCell className="pl-5">
+                <PersonCell user={expense.paidBy} />
+              </TableCell>
+              <TableCell>
+                <PersonCell user={expense.expenseFor} />
+              </TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{formatCents(expense.amountCents)}</TableCell>
+              <TableCell className="max-w-56 truncate text-muted-foreground" title={expense.description}>
+                {expense.description}
+              </TableCell>
+              <TableCell className="pr-5 text-right text-muted-foreground tabular-nums">
+                <ExpenseDate iso={expense.createdAt} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/** Mobile: compact rows that keep the payer → recipient direction obvious. */
+function ExpenseCards({ expenses }: { expenses: ExpenseDto[] }) {
+  return (
+    <ul aria-label="Expenses" className="divide-y md:hidden">
+      {expenses.map(({ id, paidBy, expenseFor, amountCents, description, createdAt }) => (
+        <li key={id} data-testid="expense-row" className="flex items-center gap-3 px-4 py-3.5">
+          <UserAvatar user={paidBy} />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 font-medium">
+              {paidBy.name}
+              <ArrowRightIcon aria-hidden className="size-3.5 text-muted-foreground" />
+              <span className="sr-only">paid for</span>
+              {expenseFor.name}
+            </p>
+            <p className="truncate text-muted-foreground" title={description}>
+              {description}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="font-semibold tabular-nums">{formatCents(amountCents)}</p>
+            <ExpenseDate iso={createdAt} className="text-xs text-muted-foreground" />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function ExpenseListSkeleton() {
   return (
-    <div aria-busy aria-label="Loading expenses" className="-my-3 divide-y">
-      {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="flex items-center gap-3 py-3">
-          <Skeleton className="size-9 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-2/5" />
-            <Skeleton className="h-3.5 w-3/5" />
-          </div>
-          <Skeleton className="h-4 w-16" />
+    <div aria-busy aria-label="Loading expenses" className="divide-y">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div key={index} className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
+          <Skeleton className="size-8 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="ml-auto h-4 w-16 md:ml-8" />
+          <Skeleton className="hidden h-4 flex-1 md:block" />
+          <Skeleton className="hidden h-4 w-20 md:block" />
         </div>
       ))}
     </div>

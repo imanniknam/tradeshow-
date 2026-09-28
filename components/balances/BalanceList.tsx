@@ -2,8 +2,8 @@
 
 import { ArrowRightIcon, CircleCheckIcon } from "lucide-react";
 
+import { Panel, PanelHeader } from "@/components/shared/Panel";
 import { QueryError } from "@/components/shared/QueryError";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -16,19 +16,19 @@ export function BalanceList() {
   const { data: balances, error, isPending, isFetching, refetch } = useBalances();
 
   return (
-    <Card aria-labelledby="balances-heading">
-      <CardHeader>
-        <CardTitle id="balances-heading" className="text-base">
-          Balances
-        </CardTitle>
-        <CardDescription>Net amounts after offsetting payments in both directions.</CardDescription>
-        {isFetching && !isPending && (
-          <CardAction>
+    <Panel id="balances" aria-labelledby="balances-heading">
+      <PanelHeader
+        titleId="balances-heading"
+        title="Current Balances"
+        description="Who owes whom, after netting both directions"
+        action={
+          isFetching && !isPending ? (
             <Spinner className="text-muted-foreground" aria-label="Refreshing balances" />
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardContent>
+          ) : undefined
+        }
+      />
+
+      <div className="p-3 sm:p-4">
         {isPending ? (
           <BalanceListSkeleton />
         ) : error ? (
@@ -39,47 +39,53 @@ export function BalanceList() {
               <EmptyMedia variant="icon">
                 <CircleCheckIcon />
               </EmptyMedia>
-              <EmptyTitle>All settled up</EmptyTitle>
-              <EmptyDescription>Nobody owes anybody anything right now.</EmptyDescription>
+              <EmptyTitle>No outstanding balances</EmptyTitle>
+              <EmptyDescription>Everyone is settled up.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
-          <ul aria-label="Balances" className="-my-3 divide-y">
+          <ul aria-label="Balances" className="grid gap-2.5">
             {balances.map((balance) => (
-              <BalanceRow key={`${balance.from.id}-${balance.to.id}`} balance={balance} />
+              <BalanceCard key={`${balance.from.id}-${balance.to.id}`} balance={balance} />
             ))}
           </ul>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
-function BalanceRow({ balance: { from, to, amountCents } }: { balance: BalanceDto }) {
+function BalanceCard({ balance: { from, to, amountCents } }: { balance: BalanceDto }) {
   return (
-    <li className="flex items-center gap-3 py-3">
-      <div aria-hidden className="flex shrink-0 items-center gap-1">
-        <UserAvatar user={from} size="sm" />
-        <ArrowRightIcon className="size-3.5 text-muted-foreground" />
-        <UserAvatar user={to} size="sm" />
+    <li className="flex items-center gap-3 rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/30 hover:bg-accent/40">
+      <UserAvatar user={from} size="lg" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate">
+          <span className="font-semibold">{from.name}</span> <span className="text-muted-foreground">owes</span>{" "}
+          <span className="font-semibold">{to.name}</span>
+        </p>
+        <div aria-hidden className="mt-1.5 flex items-center gap-1">
+          <UserAvatar user={from} size="xs" />
+          <ArrowRightIcon className="size-3.5 text-rose-500" />
+          <UserAvatar user={to} size="xs" />
+        </div>
       </div>
-      <p className="min-w-0 flex-1">
-        <span className="font-medium">{from.name}</span> <span className="text-muted-foreground">owes</span>{" "}
-        <span className="font-medium">{to.name}</span>
-      </p>
-      <p className="shrink-0 font-semibold tabular-nums">{formatCents(amountCents)}</p>
+      <p className="shrink-0 text-base font-semibold text-rose-600 tabular-nums">{formatCents(amountCents)}</p>
     </li>
   );
 }
 
 function BalanceListSkeleton() {
   return (
-    <div aria-busy aria-label="Loading balances" className="-my-3 divide-y">
+    <div aria-busy aria-label="Loading balances" className="grid gap-2.5">
       {Array.from({ length: 3 }, (_, index) => (
-        <div key={index} className="flex items-center gap-3 py-3">
-          <Skeleton className="h-6 w-18 rounded-full" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 w-14" />
+        <div key={index} className="flex items-center gap-3 rounded-lg border p-3.5">
+          <Skeleton className="size-11 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3.5 w-16" />
+          </div>
+          <Skeleton className="h-5 w-16" />
         </div>
       ))}
     </div>

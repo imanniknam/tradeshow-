@@ -41,7 +41,12 @@ Alice → Bob → $50     means     Bob owes Alice $50
   - Both lists refresh automatically after an expense is saved.
 - **Seeded users:** Alice, Bob, Charlie and David, loaded from the database. There is no auth, registration or user-management UI, by design.
 - **Money stored as integer cents** end to end. Values are formatted as USD only for display.
-- **Polished UX:** loading skeletons, empty states, error states with retry, toast feedback, accessible labelled form controls, and a responsive layout (two columns on desktop, stacked on mobile).
+- **Dashboard UI:**
+  - Stat cards for total spent, transactions (with this week's count) and open balances.
+  - A desktop sidebar listing each person's overall net position (+ is owed, − owes).
+  - Expenses in a data table on desktop and compact cards on mobile.
+  - A bottom navigation on mobile that switches between the Expenses and Balances views.
+- **Polished UX:** loading skeletons, empty states, error states with retry, toast feedback and accessible labelled form controls. Respects `prefers-reduced-motion`.
 
 ## Tech stack
 
@@ -53,7 +58,7 @@ Alice → Bob → $50     means     Bob owes Alice $50
 | Validation          | Zod 4, shared by client and server                         |
 | Forms               | React Hook Form + `@hookform/resolvers`                    |
 | Server state        | TanStack Query 5                                           |
-| UI                  | Tailwind CSS 4, shadcn/ui (Radix), lucide icons, sonner    |
+| UI                  | Tailwind CSS 4, shadcn/ui (Radix), lucide icons, sonner, Inter (self-hosted) |
 | Unit tests          | Vitest                                                     |
 | E2E tests           | Playwright                                                 |
 | Package manager     | pnpm                                                       |
@@ -87,12 +92,13 @@ app/
 ├── page.tsx                   the single page
 └── providers.tsx              QueryClientProvider + toaster
 components/
+├── dashboard/                 page shell: Dashboard, AppSidebar, MobileNav, StatCards
 ├── expenses/
-│   ├── ExpenseList.tsx
-│   └── AddExpenseModal.tsx
+│   ├── ExpenseList.tsx        table (desktop) + cards (mobile)
+│   └── AddExpenseModal.tsx    provider + trigger button + dialog form
 ├── balances/
 │   └── BalanceList.tsx
-├── shared/QueryError.tsx      error state with retry
+├── shared/                    Panel, QueryError (error state with retry)
 ├── users/UserAvatar.tsx
 └── ui/                        shadcn/ui primitives
 lib/
@@ -100,7 +106,8 @@ lib/
 │   ├── client.ts              typed fetch client + ApiError
 │   └── queries.ts             TanStack Query hooks and query keys
 ├── balance/
-│   └── calculateBalances.ts   balance netting algorithm (pure)
+│   ├── calculateBalances.ts   balance netting algorithm (pure)
+│   └── netPositions.ts        per-user overall position (sidebar)
 ├── server/                    server-only data access + response helpers
 ├── validations/expense.ts     Zod schemas (API payload + form)
 ├── money.ts                   cents parsing/formatting
@@ -358,5 +365,5 @@ Any other container host reachable from Iran (e.g. Liara, Runflare, or a plain V
 - **Pairwise netting only.** Balances are netted per pair, as the challenge specifies. Debts are not simplified across the whole group (e.g. A→B→C collapsed into A→C), because that would hide who actually transacted with whom.
 - **422 for semantic errors** (validation, unknown users) and **400** only for malformed JSON.
 - **SQLite on a volume.** This is ideal for the brief, but it limits the app to one replica. Moving to Postgres only requires changing the Prisma provider and adapter.
-- **Local fonts** (`geist` package) instead of `next/font/google`, so production builds don't depend on reaching Google Fonts.
+- **Self-hosted Inter** (`@fontsource-variable/inter`) instead of `next/font/google`, so production builds don't depend on reaching Google Fonts.
 - **`prisma` and `tsx` are runtime dependencies** because the container applies migrations and runs the seed on start.

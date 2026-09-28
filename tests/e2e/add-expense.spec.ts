@@ -1,6 +1,8 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import type { BalanceDto } from "@/lib/types";
+
+import { selectUser, showView, visibleExpenseRows } from "./helpers";
 
 /** Net amount in cents that `debtor` owes `creditor` (negative if reversed). */
 async function netOwedCents(request: APIRequestContext, debtor: string, creditor: string) {
@@ -20,22 +22,15 @@ function usd(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-async function selectUser(page: Page, label: "Paid by" | "Expense for", name: string) {
-  await page.getByRole("combobox", { name: label }).click();
-  await page.getByRole("option", { name, exact: true }).click();
-}
-
 test("adds an expense and updates the expense list and balances", async ({ page, request }) => {
   const description = `Team lunch ${Date.now()}`;
   const owedBefore = await netOwedCents(request, "Charlie", "David");
 
   await page.goto("/");
-  const expenses = page.getByRole("list", { name: "Expenses" });
-  const balances = page.getByRole("list", { name: "Balances" });
-  await expect(expenses).toBeVisible();
+  await expect(visibleExpenseRows(page).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Add Expense" }).click();
-  const dialog = page.getByRole("dialog", { name: "Add expense" });
+  const dialog = page.getByRole("dialog", { name: "Add Expense" });
   await expect(dialog).toBeVisible();
 
   // David paid $42.50 for Charlie -> Charlie owes David $42.50 more.
@@ -45,14 +40,17 @@ test("adds an expense and updates the expense list and balances", async ({ page,
   await dialog.getByLabel("Description").fill(description);
   await expect(dialog).toContainText("Charlie will owe David $42.50.");
 
-  await dialog.getByRole("button", { name: "Add expense" }).click();
+  await dialog.getByRole("button", { name: "Add Expense" }).click();
 
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Expense added")).toBeVisible();
 
-  const newExpense = expenses.getByRole("listitem").filter({ hasText: description });
-  await expect(newExpense).toContainText("David paid for Charlie");
+  const newExpense = visibleExpenseRows(page).filter({ hasText: description });
+  await expect(newExpense).toContainText(/David.*Charlie/); // payer first, then recipient
   await expect(newExpense).toContainText("$42.50");
+
+  await showView(page, "Balances");
+  const balances = page.getByRole("list", { name: "Balances" });
 
   const owedAfter = owedBefore + 4250;
   if (owedAfter > 0) {
@@ -71,9 +69,9 @@ test("adds an expense and updates the expense list and balances", async ({ page,
 test("shows validation errors and keeps the modal open for invalid input", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add Expense" }).click();
-  const dialog = page.getByRole("dialog", { name: "Add expense" });
+  const dialog = page.getByRole("dialog", { name: "Add Expense" });
 
-  await dialog.getByRole("button", { name: "Add expense" }).click();
+  await dialog.getByRole("button", { name: "Add Expense" }).click();
   await expect(dialog.getByText("Select who paid")).toBeVisible();
   await expect(dialog.getByText("Select who it was for")).toBeVisible();
   await expect(dialog.getByText("Amount is required")).toBeVisible();
@@ -83,7 +81,7 @@ test("shows validation errors and keeps the modal open for invalid input", async
   await selectUser(page, "Expense for", "Alice");
   await dialog.getByLabel("Amount (USD)").fill("0");
   await dialog.getByLabel("Description").fill("Invalid");
-  await dialog.getByRole("button", { name: "Add expense" }).click();
+  await dialog.getByRole("button", { name: "Add Expense" }).click();
 
   await expect(dialog.getByText("Payer and recipient must be different people")).toBeVisible();
   await expect(dialog.getByText("Amount must be greater than zero")).toBeVisible();

@@ -2,29 +2,36 @@ import { cn } from "@/lib/utils";
 import type { UserDto } from "@/lib/types";
 
 const PALETTE = [
-  "bg-sky-100 text-sky-800",
-  "bg-amber-100 text-amber-800",
-  "bg-emerald-100 text-emerald-800",
-  "bg-violet-100 text-violet-800",
-  "bg-rose-100 text-rose-800",
-  "bg-teal-100 text-teal-800",
+  "bg-indigo-500 text-white",
+  "bg-emerald-500 text-white",
+  "bg-sky-500 text-white",
+  "bg-pink-500 text-white",
+  "bg-amber-500 text-white",
+  "bg-violet-500 text-white",
 ] as const;
+
+const SIZES = {
+  xs: "size-5 text-[10px]",
+  sm: "size-7 text-xs",
+  md: "size-9 text-sm",
+  lg: "size-11 text-base",
+} as const;
 
 interface UserAvatarProps {
   user: UserDto;
-  size?: "sm" | "md";
+  size?: keyof typeof SIZES;
   className?: string;
 }
 
-/** Initials badge with a stable per-user colour. Decorative: the name is always shown next to it. */
+/** Initial badge with a stable per-user colour. Decorative: the name is always shown nearby. */
 export function UserAvatar({ user, size = "md", className }: UserAvatarProps) {
   return (
     <span
       aria-hidden
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-semibold select-none",
-        size === "sm" ? "size-6 text-[11px]" : "size-9 text-sm",
-        PALETTE[user.id % PALETTE.length],
+        SIZES[size],
+        PALETTE[(user.id - 1 + PALETTE.length) % PALETTE.length],
         className,
       )}
     >
