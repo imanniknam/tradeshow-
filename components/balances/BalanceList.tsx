@@ -11,8 +11,14 @@ import { UserAvatar } from "@/components/users/UserAvatar";
 import { useBalances } from "@/lib/api/queries";
 import { formatCents } from "@/lib/money";
 import type { BalanceDto } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-export function BalanceList() {
+interface BalanceListProps {
+  /** "side": narrow column next to the expenses. "full": the dedicated Balances view. */
+  layout?: "side" | "full";
+}
+
+export function BalanceList({ layout = "side" }: BalanceListProps) {
   const { data: balances, error, isPending, isFetching, refetch } = useBalances();
 
   return (
@@ -44,7 +50,7 @@ export function BalanceList() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ul aria-label="Balances" className="grid gap-2.5">
+          <ul aria-label="Balances" className={cn("grid gap-2.5", layout === "full" && "md:grid-cols-2")}>
             {balances.map((balance) => (
               <BalanceCard key={`${balance.from.id}-${balance.to.id}`} balance={balance} />
             ))}

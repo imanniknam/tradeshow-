@@ -5,7 +5,7 @@ import { DASHBOARD_VIEWS, type DashboardView } from "@/components/dashboard/view
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/users/UserAvatar";
 import { useBalances, useUsers } from "@/lib/api/queries";
-import { calculateNetPositions } from "@/lib/balance/netPositions";
+import { calculateNetPositions, getNetPosition } from "@/lib/balance/netPositions";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -32,12 +32,12 @@ export function AppSidebar({ activeView, onNavigate }: AppSidebarProps) {
             const isActive = activeView === id;
             return (
               <li key={id}>
-                <a
-                  href={`#${id}`}
+                <button
+                  type="button"
                   onClick={() => onNavigate(id)}
-                  aria-current={isActive ? "true" : undefined}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 font-medium transition-colors",
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 font-medium transition-colors",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -45,7 +45,7 @@ export function AppSidebar({ activeView, onNavigate }: AppSidebarProps) {
                 >
                   <Icon aria-hidden className="size-4" />
                   {label}
-                </a>
+                </button>
               </li>
             );
           })}
@@ -78,7 +78,7 @@ function PeopleList() {
               </li>
             ))
           : users.data?.map((user) => {
-              const net = positions?.get(user.id) ?? 0;
+              const net = positions ? getNetPosition(positions, user.id).netCents : 0;
               return (
                 <li key={user.id} className="flex items-center gap-3 rounded-lg px-3 py-2">
                   <UserAvatar user={user} size="sm" />

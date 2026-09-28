@@ -1,11 +1,12 @@
 import type { Page } from "@playwright/test";
 
-/** On small screens the bottom navigation switches views; on desktop both are always visible. */
+/** Switches views via the sidebar (desktop) or the bottom navigation (mobile), whichever is visible. */
 export async function showView(page: Page, view: "Expenses" | "Balances") {
-  const mobileNav = page.getByRole("navigation", { name: "Views" });
-  if (await mobileNav.isVisible()) {
-    await mobileNav.getByRole("button", { name: view }).click();
-  }
+  await page
+    .getByRole("navigation", { name: /^(Sections|Views)$/ })
+    .filter({ visible: true })
+    .getByRole("button", { name: view })
+    .click();
 }
 
 export async function selectUser(page: Page, label: "Paid by" | "Expense for", name: string) {
