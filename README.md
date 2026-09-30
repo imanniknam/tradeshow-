@@ -32,21 +32,23 @@ Alice → Bob → $50     means     Bob owes Alice $50
 
 ## Features
 
-- **Expenses view:** every expense, showing who paid, who it was for, the amount, the description and the date (newest first).
-- **Balances view:** net balance per pair of users, e.g. `Bob owes Alice $120`.
-  Transactions in both directions are netted, and pairs that net to zero are hidden.
+- **Expenses view:** every expense with date, description, who paid, who it was for and the amount (newest first).
+  - Filter the list by person ("everything Alice paid or was paid for").
+  - A data table on tablet/desktop and compact two-line rows on phones. Dates read "Today", "Yesterday" or "Sep 28", and the full timestamp shows on hover.
+- **Balances view:**
+  - **Who owes whom:** one netted line per pair of people, e.g. `Bob owes Alice $80.00`. Transactions in both directions are netted, and pairs that net to zero are hidden.
+  - **Net position:** what each person gets back or owes overall, with a diverging bar per person.
 - **Add Expense modal:**
-  - Fields: _Paid by_, _Expense for_, _Amount_ and _Description_.
-  - Client-side and server-side validation, with a live "Bob will owe Alice $50.00" preview.
-  - Both lists refresh automatically after an expense is saved.
+  - Fields: _Paid by_, _Expense for_, _Amount_ and _Description_, plus a button to swap payer and recipient.
+  - A **live balance preview** shows the pair's balance now and after saving. Because balances are netted, a new expense can also *reduce*, *settle* or *flip* an existing debt, e.g. `Now: Bob owes Alice $80.00 → After: Alice owes Bob $20.00`.
+  - Client-side and server-side validation (the same Zod rules). Server field errors are mapped back onto the form.
+  - Amounts accept `12.5`, `.5`, `1,250.00` and Persian/Arabic digits (`۱۲٫۵`). They are tidied to `12.50` when you leave the field.
+  - The success toast states the resulting balance, e.g. `Alice now owes Bob $20.00 in total.`
+- **Headline figures:** total recorded, outstanding debt and the last 7 days.
+- **URL-addressable views:** `/#balances` survives a reload, can be shared, and works with the back button.
 - **Seeded users:** Alice, Bob, Charlie and David, loaded from the database. There is no auth, registration or user-management UI, by design.
 - **Money stored as integer cents** end to end. Values are formatted as USD only for display.
-- **Dashboard UI:**
-  - Stat cards for total spent, transactions (with this week's count) and open balances.
-  - A desktop sidebar listing each person's overall net position (+ is owed, − owes).
-  - Expenses in a data table on desktop and compact cards on mobile.
-  - A bottom navigation on mobile that switches between the Expenses and Balances views.
-- **Polished UX:** loading skeletons, empty states, error states with retry, toast feedback and accessible labelled form controls. Respects `prefers-reduced-motion`.
+- **Details:** light and dark themes (follows the OS), loading skeletons, empty and error states with retry, accessible tabs, labels and live regions, and `prefers-reduced-motion` support.
 
 ## Tech stack
 
@@ -87,17 +89,19 @@ app/
 ├── api/
 │   ├── users/route.ts         GET  /api/users
 │   ├── expenses/route.ts      GET/POST /api/expenses
-│   └── balances/route.ts      GET  /api/balances
+│   ├── balances/route.ts      GET  /api/balances
+│   └── health/route.ts        GET  /api/health
 ├── layout.tsx                 fonts, metadata, providers
 ├── page.tsx                   the single page
 └── providers.tsx              QueryClientProvider + toaster
 components/
-├── dashboard/                 page shell: Dashboard, AppSidebar, MobileNav, StatCards
+├── dashboard/                 page shell: Dashboard (header + tabs), SummaryStrip, views (URL state)
 ├── expenses/
-│   ├── ExpenseList.tsx        table (desktop) + cards (mobile)
-│   └── AddExpenseModal.tsx    provider + trigger button + dialog form
+│   ├── ExpenseList.tsx        filterable table (desktop) + rows (mobile)
+│   └── AddExpenseModal.tsx    provider + trigger button + dialog form + balance preview
 ├── balances/
-│   └── BalanceList.tsx
+│   ├── BalanceList.tsx        pairwise "who owes whom"
+│   └── NetPositions.tsx       per-person net position
 ├── shared/                    Panel, QueryError (error state with retry)
 ├── users/UserAvatar.tsx
 └── ui/                        shadcn/ui primitives
@@ -107,11 +111,13 @@ lib/
 │   └── queries.ts             TanStack Query hooks and query keys
 ├── balance/
 │   ├── calculateBalances.ts   balance netting algorithm (pure)
-│   └── netPositions.ts        per-user overall position (sidebar)
+│   ├── netPositions.ts        per-user overall position
+│   └── pairBalance.ts         balance of one pair, before/after a new expense
 ├── server/                    server-only data access + response helpers
 ├── validations/expense.ts     Zod schemas (API payload + form)
 ├── money.ts                   cents parsing/formatting
-├── format.ts                  date formatting
+├── format.ts                  date formatting, pluralisation
+├── stats.ts                   headline figures
 ├── prisma.ts                  Prisma client singleton
 └── types.ts                   DTOs shared by API and client
 prisma/
@@ -179,6 +185,7 @@ always look like:
 | GET    | `/api/expenses`  | All expenses with payer/recipient, newest first | 200   |
 | POST   | `/api/expenses`  | Create an expense                             | 201     |
 | GET    | `/api/balances`  | Net balances between users                    | 200     |
+| GET    | `/api/health`    | Liveness + database check                     | 200 / 503 |
 
 **`POST /api/expenses`** request body:
 
@@ -190,7 +197,7 @@ always look like:
 | ------ | ---------------------------------------------------------------------- |
 | 201    | Created. Returns the new expense.                                      |
 | 400    | Body is not valid JSON.                                                |
-| 422    | Validation failed (missing fields, amount ≤ 0 or not whole cents, same payer and recipient, description too long) or a referenced user does not exist. |
+| 422    | Validation failed (missing fields, amount ≤ 0 or not whole cents, same payer and recipient, description too long) or a referenced user does not exist. All field errors are reported at once. |
 | 500    | Unexpected server/database error. The details are logged server-side; the client gets a generic message. |
 
 Unsupported methods return `405` (handled by Next.js).
@@ -301,13 +308,16 @@ pnpm test:e2e                           # end-to-end tests
 ```
 
 - **Unit tests (Vitest):**
-  - [`tests/balance`](tests/balance) covers the balance algorithm: a single transaction, opposite transactions, multiple transactions, zero net balance, independent pairs, no transitive netting, cent precision, order independence and invalid amounts.
-  - [`tests/lib`](tests/lib) covers money parsing and formatting, the form schema and the API schema.
+  - [`tests/balance`](tests/balance) covers the balance algorithm (single transaction, opposite transactions, multiple transactions, zero net balance, independent pairs, no transitive netting, cent precision, order independence, invalid amounts), per-person net positions, and the before/after preview (increase, reduce, settle, flip).
+  - [`tests/lib`](tests/lib) covers money parsing (grouping, leading/trailing dots, Persian digits) and formatting, relative dates, the form schema and the API schema.
 - **E2E tests (Playwright):** [`tests/e2e`](tests/e2e) runs on desktop and mobile Chromium.
-  - It opens the Add Expense modal, fills the form, submits, then checks that the new expense appears and the netted balance updates.
-  - It also checks validation errors, plus error states using mocked API failures: a failed load shows retry, and a failed save keeps the modal open with the error.
+  - It adds an expense through the modal and checks the preview, the list and the netted balance.
+  - It nets an expense against an opposite debt and checks the flipped direction in the preview, the toast and the API.
+  - It checks validation errors, swapping payer/recipient, filtering by person, and tab state in the URL (reload + back button).
+  - It checks error states using mocked API failures: a failed load shows retry, a failed save keeps the modal open, and server field errors land on the right field.
+  - It runs API checks (malformed JSON → 400, invalid payload → 422 with all field errors, unknown user, health).
   - Playwright builds the app and starts it on port 3100 against a **separate** database (`prisma/e2e.db`), so your dev data is untouched.
-  - Expected balances are computed from the API before the test, so the suite is repeatable.
+  - Expected balances are computed from the API before each test, so the suite is repeatable.
 
 ## Production build
 
@@ -342,7 +352,7 @@ stateless-code container plus one SQLite file on a persistent disk.
    - **Environment:** `DATABASE_URL=file:/app/data/app.db`. This is already the image default, so setting it is optional.
    - **Persistent disk:** attach a small volume (e.g. 1 GB) mounted at **`/app/data`**. Without it, data is lost on redeploy.
    - **Replicas:** `1`. SQLite is a single-file database, so don't scale horizontally.
-   - **Health check (optional):** HTTP `GET /api/users` should return 200.
+   - **Health check (optional):** HTTP `GET /api/health` returns 200 when the app and database are up. The image also defines a Docker `HEALTHCHECK` on the same endpoint.
 4. Deploy. Migrations and the seed run automatically on start. Enable the free `*.darkube.app` domain (or attach your own) and HTTPS.
 
 **If Docker Hub or npm is slow or blocked from the build servers**, the Dockerfile exposes build arguments so everything can be pulled through mirrors:
@@ -362,6 +372,8 @@ Any other container host reachable from Iran (e.g. Liara, Runflare, or a plain V
 
 - **Integer cents everywhere.** The API accepts and returns `amountCents`. The form converts the typed decimal string to cents without floating-point maths, and formatting to `$` happens only in the UI.
 - **Balances are computed on read.** For a small ledger this is simple and always consistent. With much more data, the SQL `GROUP BY` already keeps the work proportional to the number of user pairs. The next step would be caching or a materialised pair-balance table.
+- **Preview the effect, not just the direction.** Since balances are netted, "Bob will owe Alice $50" can be wrong (Alice might already owe Bob). The modal shows the pair's balance before and after, computed with the same helpers as the API.
+- **Two tabs instead of a sidebar.** The brief asks for one page with two views, so the header holds the tabs and the primary action. On desktop, the Expenses view also keeps a compact "who owes whom" column in sight.
 - **Pairwise netting only.** Balances are netted per pair, as the challenge specifies. Debts are not simplified across the whole group (e.g. A→B→C collapsed into A→C), because that would hide who actually transacted with whom.
 - **422 for semantic errors** (validation, unknown users) and **400** only for malformed JSON.
 - **SQLite on a volume.** This is ideal for the brief, but it limits the app to one replica. Moving to Postgres only requires changing the Prisma provider and adapter.

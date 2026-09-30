@@ -24,7 +24,8 @@ RUN apt-get update \
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
 COPY prisma ./prisma
-RUN pnpm install --frozen-lockfile
+# Generous timeouts/retries: registry access from some regions (and mirrors) is slow.
+RUN pnpm install --frozen-lockfile --network-concurrency=8 --fetch-timeout=300000 --fetch-retries=5
 
 COPY . .
 RUN pnpm build \
@@ -54,6 +55,9 @@ RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + process.env.PORT + '/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 
 # Apply pending migrations, seed users (idempotent), then start the server.
 CMD ["sh", "-c", "prisma migrate deploy && prisma db seed && next start"]
