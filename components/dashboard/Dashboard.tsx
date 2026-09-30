@@ -1,72 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { Tabs } from "radix-ui";
 
 import { BalanceList } from "@/components/balances/BalanceList";
-import { PeopleSummary } from "@/components/balances/PeopleSummary";
-import { AppSidebar } from "@/components/dashboard/AppSidebar";
-import { MobileBottomNav, MobileTopBar } from "@/components/dashboard/MobileNav";
-import { StatCards } from "@/components/dashboard/StatCards";
-import type { DashboardView } from "@/components/dashboard/views";
+import { NetPositions } from "@/components/balances/NetPositions";
+import { BrandMark } from "@/components/dashboard/BrandMark";
+import { SummaryStrip } from "@/components/dashboard/SummaryStrip";
+import { DASHBOARD_VIEWS, useDashboardView, type DashboardView } from "@/components/dashboard/views";
 import { AddExpenseButton, AddExpenseProvider } from "@/components/expenses/AddExpenseModal";
 import { ExpenseList } from "@/components/expenses/ExpenseList";
-
-const VIEW_HEADINGS: Record<DashboardView, { title: string; description: string }> = {
-  expenses: { title: "Expenses", description: "View and manage all expenses between users" },
-  balances: { title: "Balances", description: "Who owes whom, with transactions in both directions netted" },
-};
+import { useBalances, useExpenses } from "@/lib/api/queries";
 
 /**
- * Single-page dashboard with two views, switched from the sidebar (desktop)
- * or the bottom navigation (mobile). On desktop the Expenses view also shows
- * the current balances alongside the table.
+ * The single page: a header with the Expenses / Balances tabs and the
+ * Add Expense action, followed by the headline figures and the active view.
  */
 export function Dashboard() {
-  const [view, setView] = useState<DashboardView>("expenses");
-  const heading = VIEW_HEADINGS[view];
+  const [view, setView] = useDashboardView();
 
-  function changeView(nextView: DashboardView) {
-    setView(nextView);
+  function changeView(next: DashboardView) {
+    setView(next);
     window.scrollTo({ top: 0 });
   }
 
   return (
     <AddExpenseProvider>
-      <div className="flex min-h-dvh">
-        <AppSidebar activeView={view} onNavigate={changeView} />
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <MobileTopBar />
-
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-5 pb-24 sm:px-6 lg:px-8 lg:pt-8 lg:pb-10">
-            <header className="mb-5 flex flex-wrap items-end justify-between gap-4 sm:mb-6">
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{heading.title}</h1>
-                <p className="mt-0.5 text-muted-foreground">{heading.description}</p>
+      <Tabs.Root value={view} onValueChange={(next) => changeView(next as DashboardView)} className="min-h-dvh">
+        <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-md">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="flex h-14 items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <BrandMark />
+                <h1 className="font-semibold tracking-tight">
+                  SplitLite<span className="sr-only"> — shared expenses</span>
+                </h1>
               </div>
-              <AddExpenseButton size="lg" className="shadow-sm shadow-primary/25 max-sm:w-full" />
-            </header>
+              <AddExpenseButton />
+            </div>
+            <ViewTabs />
+          </div>
+        </header>
 
-            <StatCards />
+        <main className="mx-auto max-w-6xl px-4 pt-5 pb-16 sm:px-6 sm:pt-8">
+          <SummaryStrip />
 
-            {view === "expenses" ? (
-              <div className="mt-5 grid items-start gap-5 sm:mt-6 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-                <ExpenseList />
-                <div className="max-lg:hidden lg:sticky lg:top-8">
-                  <BalanceList />
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5 grid gap-5 sm:mt-6 sm:gap-6">
-                <PeopleSummary />
-                <BalanceList layout="full" />
-              </div>
-            )}
-          </main>
-        </div>
-      </div>
+          <Tabs.Content value="expenses" className="mt-5 outline-none sm:mt-6">
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+              <ExpenseList />
+              <aside className="max-lg:hidden lg:sticky lg:top-32">
+                <BalanceList compact onShowAll={() => changeView("balances")} />
+              </aside>
+            </div>
+          </Tabs.Content>
 
-      <MobileBottomNav view={view} onChange={changeView} />
+          <Tabs.Content value="balances" className="mt-5 outline-none sm:mt-6">
+            <div className="grid items-start gap-6 lg:grid-cols-2">
+              <BalanceList />
+              <NetPositions />
+            </div>
+          </Tabs.Content>
+        </main>
+      </Tabs.Root>
     </AddExpenseProvider>
+  );
+}
+
+function ViewTabs() {
+  const expenses = useExpenses();
+  const balances = useBalances();
+  const counts: Record<DashboardView, number | undefined> = {
+    expenses: expenses.data?.length,
+    balances: balances.data?.length,
+  };
+
+  return (
+    <Tabs.List aria-label="Views" className="-mb-px flex gap-6">
+      {DASHBOARD_VIEWS.map(({ id, label }) => (
+        <Tabs.Trigger
+          key={id}
+          value={id}
+          className="group relative flex items-center gap-2 pt-1 pb-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground data-[state=active]:text-foreground"
+        >
+          {label}
+          {counts[id] !== undefined && (
+            <span className="rounded-full bg-muted px-1.5 py-px text-[11px] leading-4 font-medium text-muted-foreground tabular-nums group-data-[state=active]:bg-foreground group-data-[state=active]:text-background">
+              {counts[id]}
+            </span>
+          )}
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-transparent group-focus-visible:bg-ring group-data-[state=active]:bg-foreground"
+          />
+        </Tabs.Trigger>
+      ))}
+    </Tabs.List>
   );
 }

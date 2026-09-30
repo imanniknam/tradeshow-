@@ -4,6 +4,7 @@ import { ArrowRightIcon, CircleCheckIcon } from "lucide-react";
 
 import { Panel, PanelHeader } from "@/components/shared/Panel";
 import { QueryError } from "@/components/shared/QueryError";
+import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,20 +14,28 @@ import { formatCents } from "@/lib/money";
 import type { BalanceDto } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** How many balances the compact (side column) variant shows before linking to the full view. */
+const COMPACT_LIMIT = 5;
+
 interface BalanceListProps {
-  /** "side": narrow column next to the expenses. "full": the dedicated Balances view. */
-  layout?: "side" | "full";
+  /** Narrow side-column variant with a link to the full Balances view. */
+  compact?: boolean;
+  onShowAll?: () => void;
 }
 
-export function BalanceList({ layout = "side" }: BalanceListProps) {
+/** Pairwise net balances: "Bob owes Alice $80.00". */
+export function BalanceList({ compact = false, onShowAll }: BalanceListProps) {
   const { data: balances, error, isPending, isFetching, refetch } = useBalances();
+  const shown = compact ? balances?.slice(0, COMPACT_LIMIT) : balances;
+  const hidden = (balances?.length ?? 0) - (shown?.length ?? 0);
+  const headingId = compact ? "balances-side-heading" : "balances-heading";
 
   return (
-    <Panel id="balances" aria-labelledby="balances-heading">
+    <Panel aria-labelledby={headingId}>
       <PanelHeader
-        titleId="balances-heading"
-        title="Current Balances"
-        description="Who owes whom, after netting both directions"
+        titleId={headingId}
+        title="Who owes whom"
+        description={compact ? undefined : "Payments in both directions are netted per pair"}
         action={
           isFetching && !isPending ? (
             <Spinner className="text-muted-foreground" aria-label="Refreshing balances" />
@@ -34,64 +43,67 @@ export function BalanceList({ layout = "side" }: BalanceListProps) {
         }
       />
 
-      <div className="p-3 sm:p-4">
-        {isPending ? (
-          <BalanceListSkeleton />
-        ) : error ? (
+      {isPending ? (
+        <BalanceListSkeleton />
+      ) : error ? (
+        <div className="p-4">
           <QueryError title="Couldn't load balances" error={error} onRetry={() => refetch()} isRetrying={isFetching} />
-        ) : balances.length === 0 ? (
-          <Empty className="border border-dashed">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <CircleCheckIcon />
-              </EmptyMedia>
-              <EmptyTitle>No outstanding balances</EmptyTitle>
-              <EmptyDescription>Everyone is settled up.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ul aria-label="Balances" className={cn("grid gap-2.5", layout === "full" && "md:grid-cols-2")}>
-            {balances.map((balance) => (
-              <BalanceCard key={`${balance.from.id}-${balance.to.id}`} balance={balance} />
+        </div>
+      ) : balances.length === 0 ? (
+        <Empty className="py-12">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <CircleCheckIcon />
+            </EmptyMedia>
+            <EmptyTitle>All settled up</EmptyTitle>
+            <EmptyDescription>Nobody owes anybody right now.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <>
+          <ul aria-label="Balances" className="divide-y">
+            {shown?.map((balance) => (
+              <BalanceRow key={`${balance.from.id}-${balance.to.id}`} balance={balance} compact={compact} />
             ))}
           </ul>
-        )}
-      </div>
+          {compact && onShowAll && (
+            <div className="border-t px-2 py-1.5">
+              <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={onShowAll}>
+                {hidden > 0 ? `View all ${balances.length} balances` : "Open balances view"}
+                <ArrowRightIcon />
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </Panel>
   );
 }
 
-function BalanceCard({ balance: { from, to, amountCents } }: { balance: BalanceDto }) {
+function BalanceRow({ balance: { from, to, amountCents }, compact }: { balance: BalanceDto; compact: boolean }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/30 hover:bg-accent/40">
-      <UserAvatar user={from} size="lg" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate">
-          <span className="font-semibold">{from.name}</span> <span className="text-muted-foreground">owes</span>{" "}
-          <span className="font-semibold">{to.name}</span>
-        </p>
-        <div aria-hidden className="mt-1.5 flex items-center gap-1">
-          <UserAvatar user={from} size="xs" />
-          <ArrowRightIcon className="size-3.5 text-rose-500" />
-          <UserAvatar user={to} size="xs" />
-        </div>
-      </div>
-      <p className="shrink-0 text-base font-semibold text-rose-600 tabular-nums">{formatCents(amountCents)}</p>
+    <li className={cn("flex items-center gap-3 px-4", compact ? "py-3" : "py-3.5 sm:px-5")}>
+      <span aria-hidden className="flex shrink-0 -space-x-1.5">
+        <UserAvatar user={from} size={compact ? "sm" : "md"} className="ring-2 ring-card" />
+        <UserAvatar user={to} size={compact ? "sm" : "md"} className="ring-2 ring-card" />
+      </span>
+      <p className="min-w-0 flex-1 truncate">
+        <span className="font-medium">{from.name}</span> <span className="text-muted-foreground">owes</span>{" "}
+        <span className="font-medium">{to.name}</span>
+      </p>
+      <p className="shrink-0 font-semibold tabular-nums">{formatCents(amountCents)}</p>
     </li>
   );
 }
 
 function BalanceListSkeleton() {
   return (
-    <div aria-busy aria-label="Loading balances" className="grid gap-2.5">
+    <div aria-busy aria-label="Loading balances" className="divide-y">
       {Array.from({ length: 3 }, (_, index) => (
-        <div key={index} className="flex items-center gap-3 rounded-lg border p-3.5">
-          <Skeleton className="size-11 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3.5 w-16" />
-          </div>
-          <Skeleton className="h-5 w-16" />
+        <div key={index} className="flex items-center gap-3 px-4 py-3.5">
+          <Skeleton className="h-7 w-11 rounded-full" />
+          <Skeleton className="h-3.5 flex-1" />
+          <Skeleton className="h-3.5 w-14" />
         </div>
       ))}
     </div>

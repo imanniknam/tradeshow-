@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { selectUser, showView, visibleExpenseRows } from "./helpers";
+import { openAddExpense, selectUser, showView, visibleExpenseRows } from "./helpers";
 
 const serverError = {
   status: 500,
@@ -30,16 +30,38 @@ test("keeps the modal open and shows the server error when saving fails", async 
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Add Expense" }).click();
-  const dialog = page.getByRole("dialog", { name: "Add Expense" });
+  const dialog = await openAddExpense(page);
 
   await selectUser(page, "Paid by", "Alice");
   await selectUser(page, "Expense for", "Bob");
   await dialog.getByLabel("Amount (USD)").fill("10");
   await dialog.getByLabel("Description").fill("Should fail");
-  await dialog.getByRole("button", { name: "Add Expense" }).click();
+  await dialog.getByRole("button", { name: "Save expense" }).click();
 
   await expect(dialog.getByText("Couldn't save the expense")).toBeVisible();
   await expect(dialog.getByText("Something went wrong on our side. Please try again.")).toBeVisible();
   await expect(dialog.getByLabel("Description")).toHaveValue("Should fail");
+});
+
+test("maps server-side field errors back onto the form", async ({ page }) => {
+  await page.route("**/api/expenses", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({
+          status: 422,
+          json: {
+            error: { message: "One or more users do not exist", fieldErrors: { paidById: ["User does not exist"] } },
+          },
+        })
+      : route.fallback(),
+  );
+
+  await page.goto("/");
+  const dialog = await openAddExpense(page);
+  await selectUser(page, "Paid by", "Alice");
+  await selectUser(page, "Expense for", "Bob");
+  await dialog.getByLabel("Amount (USD)").fill("10");
+  await dialog.getByLabel("Description").fill("Ghost user");
+  await dialog.getByRole("button", { name: "Save expense" }).click();
+
+  await expect(dialog.getByText("User does not exist")).toBeVisible();
 });
