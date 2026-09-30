@@ -305,7 +305,7 @@ sample expenses into an **empty** database, so it is safe to run on every deploy
 | `pnpm db:seed`      | `prisma db seed`                                |
 | `pnpm db:reset`     | `prisma migrate reset --force` (destructive, dev only) |
 | `pnpm db:deploy:libsql` | Apply committed migrations to a Turso/libSQL database |
-| `pnpm vercel-build` | What Vercel runs: Turso migrations → seed → `next build` |
+| `pnpm vercel-build` | What Vercel runs: `prisma generate` → Turso migrations → seed → `next build` |
 
 ## Testing
 

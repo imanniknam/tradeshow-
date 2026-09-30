@@ -17,7 +17,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:deploy:libsql": "tsx scripts/migrate-libsql.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "tsx scripts/migrate-libsql.ts && prisma db seed && next build"
+    "vercel-build": "prisma generate && tsx scripts/migrate-libsql.ts && prisma db seed && next build"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
