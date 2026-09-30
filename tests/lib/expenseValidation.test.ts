@@ -64,3 +64,28 @@ describe("createExpenseSchema", () => {
     expect(createExpenseSchema.safeParse({ ...validPayload, ...override }).success).toBe(false);
   });
 });
+
+describe("same-user rule", () => {
+  it("is reported together with other field errors", () => {
+    for (const amountCents of [0, 10.5]) {
+      const api = createExpenseSchema.safeParse({ paidById: 1, expenseForId: 1, amountCents, description: "" });
+      expect(Object.keys(z.flattenError(api.error!).fieldErrors).sort()).toEqual([
+        "amountCents",
+        "description",
+        "expenseForId",
+      ]);
+    }
+
+    const form = expenseFormSchema.safeParse({ paidById: "1", expenseForId: "1", amount: "", description: "" });
+    expect(Object.keys(z.flattenError(form.error!).fieldErrors).sort()).toEqual([
+      "amount",
+      "description",
+      "expenseForId",
+    ]);
+  });
+
+  it("is not reported while a user is still missing", () => {
+    const form = expenseFormSchema.safeParse({ paidById: "", expenseForId: "", amount: "5", description: "x" });
+    expect(z.flattenError(form.error!).fieldErrors.expenseForId).toEqual(["Select who it was for"]);
+  });
+});

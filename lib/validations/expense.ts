@@ -16,6 +16,13 @@ const descriptionSchema = z
 const userIdSchema = (label: string) =>
   z.number({ error: `${label} must be a user id` }).int(`${label} must be a user id`).positive(`${label} must be a user id`);
 
+/** True when both user fields of a (possibly invalid) payload pass `isValidId`. */
+function bothUsersPresent(value: unknown, isValidId: (id: unknown) => boolean): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const { paidById, expenseForId } = value as Record<string, unknown>;
+  return isValidId(paidById) && isValidId(expenseForId);
+}
+
 /** Payload accepted by `POST /api/expenses`. */
 export const createExpenseSchema = z
   .object({
@@ -23,7 +30,8 @@ export const createExpenseSchema = z
     expenseForId: userIdSchema("expenseForId"),
     amountCents: z
       .number({ error: "amountCents must be a number" })
-      .int("amountCents must be a whole number of cents")
+      // A refinement rather than `.int()`, which would abort the object and hide the same-user error.
+      .refine(Number.isInteger, "amountCents must be a whole number of cents")
       .positive("Amount must be greater than zero")
       .max(MAX_AMOUNT_CENTS, AMOUNT_TOO_LARGE_MESSAGE),
     description: descriptionSchema,
@@ -31,6 +39,8 @@ export const createExpenseSchema = z
   .refine((data) => data.paidById !== data.expenseForId, {
     message: SAME_USER_MESSAGE,
     path: ["expenseForId"],
+    // Check this even when other fields (amount, description) are invalid, so all errors are reported at once.
+    when: ({ value }) => bothUsersPresent(value, (id) => Number.isInteger(id)),
   });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
@@ -56,9 +66,10 @@ export const expenseFormSchema = z
       }),
     description: descriptionSchema,
   })
-  .refine((data) => !data.paidById || data.paidById !== data.expenseForId, {
+  .refine((data) => data.paidById !== data.expenseForId, {
     message: SAME_USER_MESSAGE,
     path: ["expenseForId"],
+    when: ({ value }) => bothUsersPresent(value, (id) => typeof id === "string" && id.length > 0),
   });
 
 export type ExpenseFormValues = z.infer<typeof expenseFormSchema>;
