@@ -4,6 +4,7 @@ import { ArrowRightIcon, ReceiptTextIcon } from "lucide-react";
 import { useState } from "react";
 
 import { AddExpenseButton } from "@/components/expenses/AddExpenseModal";
+import { DeleteExpenseButton } from "@/components/expenses/DeleteExpenseButton";
 import { Panel, PanelHeader } from "@/components/shared/Panel";
 import { QueryError } from "@/components/shared/QueryError";
 import { Button } from "@/components/ui/button";
@@ -135,7 +136,10 @@ function ExpenseTable({ expenses }: { expenses: ExpenseDto[] }) {
             <TableHead className="text-xs font-medium text-muted-foreground">Description</TableHead>
             <TableHead className="w-32 text-xs font-medium text-muted-foreground">Paid by</TableHead>
             <TableHead className="w-32 text-xs font-medium text-muted-foreground">For</TableHead>
-            <TableHead className="w-28 pr-5 text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
+            <TableHead className="w-28 text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
+            <TableHead className="w-14 pr-3">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -153,8 +157,11 @@ function ExpenseTable({ expenses }: { expenses: ExpenseDto[] }) {
               <TableCell>
                 <Person user={expense.expenseFor} />
               </TableCell>
-              <TableCell className="pr-5 text-right font-semibold tabular-nums">
+              <TableCell className="text-right font-semibold tabular-nums">
                 {formatCents(expense.amountCents)}
+              </TableCell>
+              <TableCell className="pr-3 text-right">
+                <DeleteExpenseButton expense={expense} />
               </TableCell>
             </TableRow>
           ))}
@@ -168,28 +175,32 @@ function ExpenseTable({ expenses }: { expenses: ExpenseDto[] }) {
 function ExpenseRows({ expenses }: { expenses: ExpenseDto[] }) {
   return (
     <ul aria-label="Expenses" className="divide-y md:hidden">
-      {expenses.map(({ id, paidBy, expenseFor, amountCents, description, createdAt }) => (
-        <li key={id} data-testid="expense-row" className="flex items-start gap-3 px-4 py-3">
-          <UserAvatar user={paidBy} className="mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="truncate font-medium" title={description}>
-                {description}
-              </p>
-              <p className="shrink-0 font-semibold tabular-nums">{formatCents(amountCents)}</p>
+      {expenses.map((expense) => {
+        const { id, paidBy, expenseFor, amountCents, description, createdAt } = expense;
+        return (
+          <li key={id} data-testid="expense-row" className="flex items-start gap-3 py-3 pr-2 pl-4">
+            <UserAvatar user={paidBy} className="mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="truncate font-medium" title={description}>
+                  {description}
+                </p>
+                <p className="shrink-0 font-semibold tabular-nums">{formatCents(amountCents)}</p>
+              </div>
+              <div className="mt-0.5 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <p className="flex min-w-0 items-center gap-1">
+                  <span className="truncate">{paidBy.name}</span>
+                  <ArrowRightIcon aria-hidden className="size-3 shrink-0" />
+                  <span className="sr-only">paid for</span>
+                  <span className="truncate">{expenseFor.name}</span>
+                </p>
+                <ExpenseDate iso={createdAt} className="shrink-0" />
+              </div>
             </div>
-            <div className="mt-0.5 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-              <p className="flex min-w-0 items-center gap-1">
-                <span className="truncate">{paidBy.name}</span>
-                <ArrowRightIcon aria-hidden className="size-3 shrink-0" />
-                <span className="sr-only">paid for</span>
-                <span className="truncate">{expenseFor.name}</span>
-              </p>
-              <ExpenseDate iso={createdAt} className="shrink-0" />
-            </div>
-          </div>
-        </li>
-      ))}
+            <DeleteExpenseButton expense={expense} className="size-9 shrink-0" />
+          </li>
+        );
+      })}
     </ul>
   );
 }

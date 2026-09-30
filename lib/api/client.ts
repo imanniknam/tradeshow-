@@ -55,6 +55,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     }),
+  deleteExpense: (id: number) => request<ExpenseDto>(`/api/expenses/${id}`, { method: "DELETE" }),
 };
 
 export function getErrorMessage(error: unknown): string {

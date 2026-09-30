@@ -45,6 +45,7 @@ Alice → Bob → $50     means     Bob owes Alice $50
   - Client-side and server-side validation (the same Zod rules). Server field errors are mapped back onto the form.
   - Amounts accept `12.5`, `.5`, `1,250.00` and Persian/Arabic digits (`۱۲٫۵`). They are tidied to `12.50` when you leave the field.
   - The success toast states the resulting balance, e.g. `Alice now owes Bob $20.00 in total.`
+- **Delete an expense:** a trash button on every row opens a confirmation dialog showing the expense and warning that the pair's balance will be recalculated. After deleting, both lists refresh.
 - **Headline figures:** total recorded, outstanding debt and the last 7 days.
 - **URL-addressable views:** `/#balances` survives a reload, can be shared, and works with the back button.
 - **Seeded users:** Alice, Bob, Charlie and David, loaded from the database. There is no auth, registration or user-management UI, by design.
@@ -90,6 +91,7 @@ app/
 ├── api/
 │   ├── users/route.ts         GET  /api/users
 │   ├── expenses/route.ts      GET/POST /api/expenses
+│   ├── expenses/[id]/route.ts DELETE /api/expenses/:id
 │   ├── balances/route.ts      GET  /api/balances
 │   └── health/route.ts        GET  /api/health
 ├── layout.tsx                 fonts, metadata, providers
@@ -99,7 +101,8 @@ components/
 ├── dashboard/                 page shell: Dashboard (header + tabs), SummaryStrip, views (URL state)
 ├── expenses/
 │   ├── ExpenseList.tsx        filterable table (desktop) + rows (mobile)
-│   └── AddExpenseModal.tsx    provider + trigger button + dialog form + balance preview
+│   ├── AddExpenseModal.tsx    provider + trigger button + dialog form + balance preview
+│   └── DeleteExpenseButton.tsx trash button + confirmation dialog
 ├── balances/
 │   ├── BalanceList.tsx        pairwise "who owes whom"
 │   └── NetPositions.tsx       per-person net position
@@ -185,6 +188,7 @@ always look like:
 | GET    | `/api/users`     | Seeded users, sorted by name                  | 200     |
 | GET    | `/api/expenses`  | All expenses with payer/recipient, newest first | 200   |
 | POST   | `/api/expenses`  | Create an expense                             | 201     |
+| DELETE | `/api/expenses/:id` | Delete an expense; returns the deleted expense. `400` for an invalid id, `404` if it doesn't exist | 200 |
 | GET    | `/api/balances`  | Net balances between users                    | 200     |
 | GET    | `/api/health`    | Liveness + database check                     | 200 / 503 |
 

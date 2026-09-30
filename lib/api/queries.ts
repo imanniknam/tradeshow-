@@ -20,15 +20,31 @@ export function useBalances() {
   return useQuery({ queryKey: queryKeys.balances, queryFn: api.getBalances });
 }
 
-export function useCreateExpense() {
+/** Refetches everything derived from the expense ledger. */
+function useRefreshLedger() {
   const queryClient = useQueryClient();
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.balances }),
+    ]);
+}
+
+export function useCreateExpense() {
+  const refreshLedger = useRefreshLedger();
   return useMutation({
     mutationFn: api.createExpense,
     // Returning the promise keeps the mutation pending until both lists are fresh.
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.expenses }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.balances }),
-      ]),
+    onSuccess: refreshLedger,
+  });
+}
+
+export function useDeleteExpense() {
+  const refreshLedger = useRefreshLedger();
+  return useMutation({
+    mutationFn: api.deleteExpense,
+    onSuccess: refreshLedger,
+    // A 404 means someone else already deleted it; refresh so the row disappears.
+    onError: refreshLedger,
   });
 }

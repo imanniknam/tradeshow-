@@ -38,3 +38,14 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseD
   const expense = await prisma.expense.create({ data: input, select: expenseSelect });
   return toExpenseDto(expense);
 }
+
+/** Deletes an expense and returns it, or `null` if it does not exist. */
+export async function deleteExpense(id: number): Promise<ExpenseDto | null> {
+  const expense = await prisma.expense.findUnique({ where: { id }, select: expenseSelect });
+  if (!expense) {
+    return null;
+  }
+  // deleteMany does not throw if a concurrent request already removed the row.
+  await prisma.expense.deleteMany({ where: { id } });
+  return toExpenseDto(expense);
+}
