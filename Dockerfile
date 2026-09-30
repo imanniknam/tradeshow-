@@ -48,6 +48,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/lib/generated ./lib/generated
+COPY --from=builder /app/lib/db ./lib/db
 
 # SQLite lives here; mount a persistent volume at /app/data in production.
 # The container runs as root so it can always write to platform-mounted volumes.

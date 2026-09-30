@@ -1,13 +1,7 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-
+import { createDriverAdapter } from "../lib/db/adapter";
 import { PrismaClient } from "../lib/generated/prisma/client";
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  throw new Error("DATABASE_URL is not set");
-}
-
-const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+const prisma = new PrismaClient({ adapter: createDriverAdapter() });
 
 const USER_NAMES = ["Alice", "Bob", "Charlie", "David"] as const;
 type UserName = (typeof USER_NAMES)[number];

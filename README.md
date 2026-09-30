@@ -26,7 +26,8 @@ Alice → Bob → $50     means     Bob owes Alice $50
 11. [Testing](#testing)
 12. [Production build](#production-build)
 13. [Deployment (Hamravesh)](#deployment-hamravesh)
-14. [Design decisions & trade-offs](#design-decisions--trade-offs)
+14. [Deployment (Vercel + Turso)](#deployment-vercel--turso)
+15. [Design decisions & trade-offs](#design-decisions--trade-offs)
 
 ---
 
@@ -265,7 +266,8 @@ pnpm dev                      # http://localhost:3000
 
 | Variable       | Required | Default in `.env.example` | Description |
 | -------------- | -------- | ------------------------- | ----------- |
-| `DATABASE_URL` | yes      | `file:./prisma/dev.db`    | SQLite connection string. Relative paths are resolved from the project root. In production use an absolute path on a persistent volume, e.g. `file:/app/data/app.db`. |
+| `DATABASE_URL` | yes      | `file:./prisma/dev.db`    | SQLite connection string. `file:` URLs use a local SQLite file; relative paths are resolved from the project root, and in Docker you should use an absolute path on a persistent volume, e.g. `file:/app/data/app.db`. `libsql://` URLs use hosted SQLite on [Turso](https://turso.tech), for serverless platforms like Vercel. |
+| `DATABASE_AUTH_TOKEN` | only for Turso | — | Turso database auth token. Ignored for `file:` URLs. |
 
 `.env` is git-ignored; only `.env.example` is committed. There are no secrets.
 
@@ -298,6 +300,8 @@ sample expenses into an **empty** database, so it is safe to run on every deploy
 | `pnpm db:deploy`    | `prisma migrate deploy`                         |
 | `pnpm db:seed`      | `prisma db seed`                                |
 | `pnpm db:reset`     | `prisma migrate reset --force` (destructive, dev only) |
+| `pnpm db:deploy:libsql` | Apply committed migrations to a Turso/libSQL database |
+| `pnpm vercel-build` | What Vercel runs: Turso migrations → seed → `next build` |
 
 ## Testing
 
@@ -367,6 +371,37 @@ is unreachable, set the `PRISMA_ENGINES_MIRROR` environment variable for the bui
 
 Any other container host reachable from Iran (e.g. Liara, Runflare, or a plain VPS with
 `docker run`) works the same way: build the Dockerfile, expose port 3000, and mount a volume at `/app/data`.
+
+## Deployment (Vercel + Turso)
+
+Vercel runs the app as serverless functions with a read-only, non-persistent filesystem,
+so a SQLite **file** cannot be used there. Instead the same schema runs on **Turso**
+(hosted SQLite/libSQL). The app picks the driver from `DATABASE_URL`: `file:` → better-sqlite3,
+`libsql://` → Turso ([`lib/db/adapter.ts`](lib/db/adapter.ts)).
+
+> `*.vercel.app` is often unreachable from Iran. Use Vercel as a secondary link and
+> Hamravesh (above) for the Iran-accessible deployment.
+
+1. **Create the database** (free tier), with the [Turso CLI](https://docs.turso.tech/cli) or the dashboard:
+   ```bash
+   turso db create splitlite
+   ```
+   ```bash
+   turso db show splitlite --url
+   ```
+   ```bash
+   turso db tokens create splitlite
+   ```
+2. **Import the GitHub repo in Vercel** (Add New → Project). The framework preset is Next.js, and pnpm is detected from the lockfile.
+3. **Set the environment variables** (Production and Preview):
+   - `DATABASE_URL` = `libsql://splitlite-<org>.turso.io`
+   - `DATABASE_AUTH_TOKEN` = the token from step 1
+4. **Deploy.** Vercel runs the `vercel-build` script automatically:
+   - it applies `prisma/migrations` to Turso ([`scripts/migrate-libsql.ts`](scripts/migrate-libsql.ts));
+   - it runs the idempotent seed;
+   - it builds the app.
+
+   Redeploys are safe because applied migrations are tracked in `_libsql_migrations`.
 
 ## Design decisions & trade-offs
 

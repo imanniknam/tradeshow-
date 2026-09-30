@@ -1,13 +1,8 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-
+import { createDriverAdapter } from "@/lib/db/adapter";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
 function createPrismaClient() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL is not set");
-  }
-  return new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+  return new PrismaClient({ adapter: createDriverAdapter() });
 }
 
 // Reuse a single client across hot reloads in development.
