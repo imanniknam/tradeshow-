@@ -18,8 +18,15 @@ const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
 
 async function main() {
   const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL is not set");
+  if (!url || (process.env.VERCEL && url.startsWith("file:"))) {
+    throw new Error(
+      [
+        url ? `DATABASE_URL points at a local SQLite file (${url}), which Vercel cannot persist.` : "DATABASE_URL is not set.",
+        "Set these in Vercel → Project Settings → Environment Variables (Production and Preview), then redeploy:",
+        "  DATABASE_URL        = libsql://<database>-<org>.turso.io",
+        "  DATABASE_AUTH_TOKEN = <token from `turso db tokens create <database>`>",
+      ].join("\n"),
+    );
   }
 
   const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
